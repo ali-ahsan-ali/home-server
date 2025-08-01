@@ -1,0 +1,135 @@
+services:
+  radarr:
+    container_name: radarr
+    image: ghcr.io/hotio/radarr:latest
+    restart: unless-stopped
+    logging:
+      driver: json-file
+    ports:
+      - 7878:7878
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${CONFIG_ROOT:-.}/radarr:/config
+      - ${DATA_ROOT}:/data
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name="radarr"
+      - tsdproxy.container_port=7878
+    network_mode: host
+
+  sonarr:
+    container_name: sonarr
+    image: ghcr.io/hotio/sonarr:latest
+    restart: unless-stopped
+    logging:
+      driver: json-file
+    ports:
+      - 8989:8989
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${CONFIG_ROOT:-.}/sonarr:/config
+      - ${DATA_ROOT}:/data
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name="sonarr"
+      - tsdproxy.container_port=8989
+    network_mode: host
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${CONFIG_ROOT:-.}/jellyfin:/config
+      - ${DATA_ROOT}:/data
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/dri/card0:/dev/dri/card0
+    ports:
+      - 8096:8096
+    restart: unless-stopped
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name="jellyfin"
+      - tsdproxy.container_port=8096
+    network_mode: host
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${CONFIG_ROOT:-.}/jellyseerr:/app/config
+    ports: 
+      - 5055:5055
+    restart: unless-stopped
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name="jellyseer"
+      - tsdproxy.container_port=5055
+    network_mode: host
+  
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${CONFIG_ROOT:-.}/prowlarr:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name="prowlarr"
+      - tsdproxy.container_port=9696 
+    network_mode: host
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:libtorrentv1
+    container_name: qbittorrent
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - WEBUI_PORT=9090
+      - DOCKER_MODS=ghcr.io/gabe565/linuxserver-mod-vuetorrent
+    volumes:
+      - ${CONFIG_ROOT:-.}/qbittorrent:/config
+      - ${DATA_ROOT}:/data
+    restart: unless-stopped
+    ports:
+    - 6881:6881
+    - 6881:6881/udp
+    - '9090:9090'
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name="qbittorrent"
+      - tsdproxy.container_port=9090 
+    network_mode: host
+
+
+  recyclarr:
+    image: ghcr.io/recyclarr/recyclarr
+    container_name: recyclarr
+    ports:
+      - 9191:9191
+    volumes:
+      - ${CONFIG_ROOT:-.}/recyclarr:/config
+    environment:
+      - TZ=${TIMEZONE}
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
