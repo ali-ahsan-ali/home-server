@@ -171,6 +171,7 @@ services:
     environment:
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_SCHEDULE=0 0 4 * * *
+      - WATCHTOWER_NOTIFICATION_URL=${NOTIFY_SHOUTRRR_URL}
       - TZ=${TIMEZONE}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -182,6 +183,7 @@ services:
     logging: *logging
     environment:
       - AUTOHEAL_CONTAINER_LABEL=all
+      - WEBHOOK_URL=${NOTIFY_WEBHOOK_URL}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -211,7 +213,10 @@ services:
       retries: 3
       start_period: 30s
 
-  maintainerr: # :6246
+  # Maintainerr has no login and its API returns stored credentials, so it
+  # listens on loopback only. Reach it with:
+  #   ssh -L 6246:localhost:6246 192.168.1.100  ->  http://localhost:6246
+  maintainerr: # 127.0.0.1:6246
     container_name: maintainerr
     image: ghcr.io/maintainerr/maintainerr:latest
     restart: unless-stopped
@@ -220,14 +225,10 @@ services:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
+      - UI_HOSTNAME=127.0.0.1
     volumes:
       - ${CONFIG_ROOT:-.}/maintainerr:/opt/data
       - ${DATA_ROOT}:/data
-    labels:
-      - tsdproxy.enable=true
-      - tsdproxy.name=maintainerr
-      - tsdproxy.port.1=443/https:6246/http
-      - tsdproxy.port.2=80/http:6246/http
     network_mode: host
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:6246"]

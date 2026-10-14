@@ -17,4 +17,4 @@ services:
     labels:
       - com.centurylinklabs.watchtower.enable=false
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080" # dashboard has no login
