@@ -3,18 +3,22 @@ services:
     image: portainer/portainer-ce:latest
     container_name: portainer
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
-      - "8000:8000"
       - "9443:9443"
-      - "9000:9000"
+      - "9000:9000" # plain HTTP; kept for the tsdproxy label below
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
     labels:
       - tsdproxy.enable=true
-      - tsdproxy.name="portainer"
+      - tsdproxy.name=portainer
       - tsdproxy.container_port=9000
-      - tsdproxy.tlsvalidate="false"
+      - tsdproxy.tlsvalidate=false
 
 volumes:
   portainer_data:

@@ -1,12 +1,18 @@
+# Rotate container logs (no daemon-wide log-opts on this host)
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# All app services use network_mode: host, so they bind directly on the host
+# ports below; `ports:` is ignored in host mode and has been removed.
 services:
-  radarr:
+  radarr: # :7878
     container_name: radarr
     image: ghcr.io/hotio/radarr:latest
     restart: unless-stopped
-    logging:
-      driver: json-file
-    ports:
-      - 7878:7878
+    logging: *logging
     environment:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
@@ -16,18 +22,22 @@ services:
       - ${DATA_ROOT}:/data
     labels:
       - tsdproxy.enable=true
-      - tsdproxy.name="radarr"
-      - tsdproxy.container_port=7878
+      - tsdproxy.name=radarr
+      - tsdproxy.port.1=443/https:7878/http
+      - tsdproxy.port.2=80/http:7878/http
     network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7878/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  sonarr:
+  sonarr: # :8989
     container_name: sonarr
     image: ghcr.io/hotio/sonarr:latest
     restart: unless-stopped
-    logging:
-      driver: json-file
-    ports:
-      - 8989:8989
+    logging: *logging
     environment:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
@@ -37,13 +47,24 @@ services:
       - ${DATA_ROOT}:/data
     labels:
       - tsdproxy.enable=true
-      - tsdproxy.name="sonarr"
+      - tsdproxy.name=sonarr
       - tsdproxy.container_port=8989
     network_mode: host
+    # Overrides the host's Tailscale MagicDNS resolver for this container
+    dns:
+      - 192.168.1.1
+      - 1.1.1.1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8989/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  jellyfin:
+  jellyfin: # :8096
     image: lscr.io/linuxserver/jellyfin:latest
     container_name: jellyfin
+    logging: *logging
     environment:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
@@ -51,56 +72,73 @@ services:
     volumes:
       - ${CONFIG_ROOT:-.}/jellyfin:/config
       - ${DATA_ROOT}:/data
+      - /tmp/jellyfin-transcode:/transcode
     devices:
       - /dev/dri/renderD128:/dev/dri/renderD128
       - /dev/dri/card0:/dev/dri/card0
-    ports:
-      - 8096:8096
     restart: unless-stopped
     labels:
       - tsdproxy.enable=true
-      - tsdproxy.name="jellyfin"
+      - tsdproxy.name=jellyfin
       - tsdproxy.container_port=8096
     network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  jellyseerr:
-    image: fallenbagel/jellyseerr:latest
+  jellyseerr: # :5055
+    image: ghcr.io/seerr-team/seerr:latest
     container_name: jellyseerr
+    logging: *logging
     environment:
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=info
       - TZ=${TIMEZONE}
     volumes:
       - ${CONFIG_ROOT:-.}/jellyseerr:/app/config
-    ports: 
-      - 5055:5055
     restart: unless-stopped
     labels:
       - tsdproxy.enable=true
-      - tsdproxy.name="jellyseer"
+      - tsdproxy.name=jellyseerr
       - tsdproxy.container_port=5055
     network_mode: host
-  
-  prowlarr:
+    healthcheck:
+      # seerr image ships wget but not curl
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:5055/api/v1/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  prowlarr: # :9696
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
+    logging: *logging
     environment:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
     volumes:
       - ${CONFIG_ROOT:-.}/prowlarr:/config
-    ports:
-      - 9696:9696
     restart: unless-stopped
     labels:
       - tsdproxy.enable=true
-      - tsdproxy.name="prowlarr"
-      - tsdproxy.container_port=9696 
+      - tsdproxy.name=prowlarr
+      - tsdproxy.container_port=9696
     network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9696/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  qbittorrent:
+  qbittorrent: # webui :9090, torrent :6881 tcp/udp
     image: lscr.io/linuxserver/qbittorrent:libtorrentv1
     container_name: qbittorrent
+    logging: *logging
     environment:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
@@ -111,44 +149,89 @@ services:
       - ${CONFIG_ROOT:-.}/qbittorrent:/config
       - ${DATA_ROOT}:/data
     restart: unless-stopped
-    ports:
-    - 6881:6881
-    - 6881:6881/udp
-    - '9090:9090'
     labels:
       - tsdproxy.enable=true
-      - tsdproxy.name="qbittorrent"
-      - tsdproxy.container_port=9090 
+      - tsdproxy.name=qbittorrent
+      - tsdproxy.port.1=443/https:9090/http
+      - tsdproxy.port.2=80/http:9090/http
     network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-
-  recyclarr:
-    image: ghcr.io/recyclarr/recyclarr
-    container_name: recyclarr
-    ports:
-      - 9191:9191
-    volumes:
-      - ${CONFIG_ROOT:-.}/recyclarr:/config
-    environment:
-      - TZ=${TIMEZONE}
-      - PUID=${USER_ID}
-      - PGID=${GROUP_ID}
-
+  # Maintained fork of the archived containrrr/watchtower (works with Docker 29+)
   watchtower:
-    image: containrrr/watchtower
+    image: nickfedor/watchtower:1
     container_name: watchtower
     restart: unless-stopped
+    logging: *logging
     environment:
       - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_SCHEDULE=0 0 4 * * *
       - TZ=${TIMEZONE}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-  
+
   autoheal:
     image: willfarrell/autoheal:latest
     container_name: autoheal
     restart: unless-stopped
+    logging: *logging
     environment:
       - AUTOHEAL_CONTAINER_LABEL=all
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+
+  sportarr: # :1867
+    image: sportarr/sportarr:latest
+    container_name: sportarr
+    logging: *logging
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+      - UMASK=022
+    volumes:
+      - ${CONFIG_ROOT:-.}/sportarr:/config
+      - ${DATA_ROOT}:/data
+    restart: unless-stopped
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name=sportarr
+      - tsdproxy.port.1=443/https:1867/http
+      - tsdproxy.port.2=80/http:1867/http
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1867"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  maintainerr: # :6246
+    container_name: maintainerr
+    image: ghcr.io/maintainerr/maintainerr:latest
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - ${CONFIG_ROOT:-.}/maintainerr:/opt/data
+      - ${DATA_ROOT}:/data
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name=maintainerr
+      - tsdproxy.port.1=443/https:6246/http
+      - tsdproxy.port.2=80/http:6246/http
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6246"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

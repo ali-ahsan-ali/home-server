@@ -1,0 +1,36 @@
+services:
+  homeassistant:
+    container_name: homeassistant
+    image: "ghcr.io/home-assistant/home-assistant:stable"
+    volumes:
+      - /opt/docker/.config/homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    restart: unless-stopped
+    network_mode: host
+    # Sonoff Zigbee 3.0 dongle; by-id path survives USB re-enumeration
+    devices:
+      - /dev/serial/by-id/usb-Itead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_V2_1c17cad78a9ef011a70c92adbb936ffa-if00-port0:/dev/serial/by-id/usb-Itead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_V2_1c17cad78a9ef011a70c92adbb936ffa-if00-port0
+    # Bluetooth (via dbus) needs these; replaces privileged + /dev:/dev
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      TZ: Australia/Sydney
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8123/manifest.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    labels:
+      - tsdproxy.enable=true
+      - tsdproxy.name=homeassistant
+      - tsdproxy.container_port=8123
+      # HA ships breaking changes monthly; update deliberately, not via watchtower
+      - com.centurylinklabs.watchtower.enable=false

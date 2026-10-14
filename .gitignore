@@ -8,3 +8,7 @@
 
 # ...even if they are in subdirectories
 !*/
+# nested third-party clones
+home-assistant/ha-blueprints/
+home-assistant/Xiaomi-cloud-tokens-extractor/
+immich/
